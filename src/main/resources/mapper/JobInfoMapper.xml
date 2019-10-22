@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.example.quartz.dao.JobInfoMapperDao">
+    <select id="getJobInfoList" resultType="com.example.quartz.entity.JobInfo"
+            parameterType="com.example.quartz.model.JobParams">
+        SELECT
+        qrtz_job_details.JOB_NAME as jobName,
+        qrtz_job_details.JOB_GROUP as jobGroup,
+        qrtz_job_details.JOB_CLASS_NAME as jobClassName,
+        qrtz_triggers.TRIGGER_NAME as triggerName,
+        qrtz_triggers.TRIGGER_GROUP as tiggerGroup,
+        qrtz_triggers.TRIGGER_STATE as jobStatus,
+        from_unixtime(qrtz_triggers.START_TIME/1000) as startTime,
+        (case when qrtz_triggers.END_TIME != '' then from_unixtime(qrtz_triggers.END_TIME/1000) else '' end) as endTime,
+        (case when qrtz_triggers.NEXT_FIRE_TIME != '' then from_unixtime(qrtz_triggers.NEXT_FIRE_TIME/1000) else '' end)
+        as nextFireTime,
+        (case when qrtz_triggers.PREV_FIRE_TIME != '' then from_unixtime(qrtz_triggers.PREV_FIRE_TIME/1000) else '' end)
+        as preFireTime,
+        qrtz_job_details.DESCRIPTION as jobDesc,
+        qrtz_cron_triggers.CRON_EXPRESSION as cronExpression,
+        qrtz_cron_triggers.TIME_ZONE_ID as timeZoneId
+        FROM qrtz_job_details
+        JOIN qrtz_triggers
+        JOIN qrtz_cron_triggers ON qrtz_job_details.JOB_NAME = qrtz_triggers.JOB_NAME
+        AND qrtz_triggers.TRIGGER_NAME = qrtz_cron_triggers.TRIGGER_NAME
+        AND qrtz_triggers.TRIGGER_GROUP = qrtz_cron_triggers.TRIGGER_GROUP
+        <where>
+            <if test="keyWord != null and keyWord != ''">
+                and qrtz_job_details.JOB_NAME like concat('%',#{keyWord},'%') or qrtz_job_details.DESCRIPTION like concat('%',#{keyWord},'%')
+            </if>
+        </where>
+    </select>
+</mapper>
