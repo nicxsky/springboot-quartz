@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Springboot Quartz Management</title>
+    <script src="js/vue.min.js"></script>
+    <script src="js/iview.min.js"></script>
+    <script src="js/jquery-3.4.1.min.js"></script>
+    <link rel="stylesheet" href="css/iview.css"/>
+</head>
+<body>
+<div id="app" style="margin: 20px; min-width: 768px;" v-clock>
+    <div>
+        <div>
+            <Row>
+                <i-col span="12">
+                    <i-Button type="primary" @click="addJob" icon="md-add">新增任务</i-Button>
+                    <i-Button type="primary" @click="search" icon="md-refresh">刷新</i-Button>
+                </i-col>
+                <i-col span="12" style="text-align: right">
+                    <i-Input v-model="searchParam.keyWord" placeholder="请输入任务名称或任务描述查询..." style="width: 220px"
+                             @on-enter="search" clearable></i-Input>
+                    <i-Button type="primary" @click="search" icon="ios-search">查询</i-Button>
+                </i-col>
+            </Row>
+        </div>
+        <div style="margin-top: 10px;">
+            <i-Table border :columns="columns" :data="data" :loading="loading"></i-Table>
+        </div>
+        <div style="margin-top: 10px;text-align: right">
+            <Page :total="pageParam.totalRecord" @on-change="pageIndexChange" @on-page-size-change="pageSizeChange"
+                  show-sizer show-total/>
+        </div>
+    </div>
+
+    <Modal
+            v-model="editModel"
+            title="新增任务"
+            @on-ok="ok">
+        <i-form :label-width="100" :model="formItem" :label-width="120" ref="formValidate" :rules="ruleValidate">
+            <Row>
+                <i-col span="24">
+                    <Form-Item label="任务名称：" prop="jobName">
+                        <i-Input v-model="formItem.jobName" placeholder="请输入任务名称..."></i-Input>
+                    </Form-Item>
+                </i-col>
+            </Row>
+            <Row>
+                <i-col span="24">
+                    <Form-Item label="任务组：" prop="jobGroup">
+                        <i-Input v-model="formItem.jobGroup" placeholder="请输入任务组名称..."></i-Input>
+                    </Form-Item>
+                </i-col>
+            </Row>
+            <Row>
+                <i-col span="24">
+                    <Form-Item label="调度时间：" prop="cronExpression">
+                        <i-Input v-model="formItem.cronExpression" placeholder="请输入调度时间..."></i-Input>
+                    </Form-Item>
+                </i-col>
+            </Row>
+            <Row>
+                <i-col span="24">
+                    <Form-Item label="任务描述：" prop="jobDesc">
+                        <i-Input v-model="formItem.jobDesc" placeholder="请输入任务描述..."></i-Input>
+                    </Form-Item>
+                </i-col>
+            </Row>
+        </i-form>
+    </Modal>
+    <Modal
+            v-model="updateModel"
+            title="修改任务"
+            @on-ok="okU">
+        <i-form :label-width="100" :model="formItemU" :label-width="120" ref="formValidateU" :rules="ruleValidateU">
+            <Row>
+                <i-col span="24">
+                    <Form-Item label="任务名称：" prop="jobName">
+                        {{formItemU.jobName}}
+                    </Form-Item>
+                </i-col>
+            </Row>
+            <Row>
+                <i-col span="24">
+                    <Form-Item label="任务组：" prop="jobGroup">
+                        {{formItemU.jobGroup}}
+                    </Form-Item>
+                </i-col>
+            </Row>
+            <Row>
+                <i-col span="24">
+                    <Form-Item label="调度时间：" prop="cronExpression">
+                        <i-Input v-model="formItemU.cronExpression" placeholder="请输入调度时间..."></i-Input>
+                    </Form-Item>
+                </i-col>
+            </Row>
+            <Row>
+                <i-col span="24">
+                    <Form-Item label="任务描述：" prop="jobDesc">
+                        <i-Input v-model="formItemU.jobDesc" placeholder="请输入任务描述..."></i-Input>
+                    </Form-Item>
+                </i-col>
+            </Row>
+        </i-form>
+    </Modal>
+</div>
+
+<script>
+    var vue = new Vue({
+        el: "#app",
+        data: function () {
+            return {
+                editModel: false,
+                updateModel: false,
+                formItem: {
+                    jobName: "com.example.quartz.job.",
+                    jobGroup: "group_"
+                },
+                ruleValidate: {
+                    jobName: [
+                        {required: true, message: '任务名称不能为空', trigger: 'blur'}
+                    ],
+                    jobGroup: [
+                        {required: true, message: '任务组不能为空', trigger: 'blur'}
+                    ],
+                    jobDesc: [
+                        {required: true, message: '任务描述不能为空', trigger: 'blur'}
+                    ],
+                    cronExpression: [
+                        {required: true, message: '任务调度时间不能为空', trigger: 'blur'}
+                    ]
+                },
+                formItemU: {
+                },
+                ruleValidateU: {
+                    jobDesc: [
+                        {required: true, message: '任务描述不能为空', trigger: 'blur'}
+                    ],
+                    cronExpression: [
+                        {required: true, message: '任务调度时间不能为空', trigger: 'blur'}
+                    ]
+                },
+                details: {},
+                columns: [
+                    {
+                        title: '任务名称',
+                        key: 'jobName',
+                        render: function (h, params) {
+                            return h('div', [
+                                h('strong', params.row.jobName)
+                            ]);
+                        }
+                    },
+                    {
+                        title: '任务组',
+                        key: 'jobGroup'
+                    },
+                    {
+                        title: '调度时间',
+                        key: 'cronExpression'
+                    },
+                    {
+                        title: '任务描述',
+                        key: 'jobDesc'
+                    },
+                    {
+                        title: '状态',
+                        key: 'jobStatus',
+                        width: 100,
+                        render: function (h, params) {
+                            return h('div', [
+                                h('strong', getstatus(params.row.jobStatus))
+                            ]);
+                        }
+                    },
+                    {
+                        title: '开始时间',
+                        key: 'startTime',
+                        width: 152,
+                        sortable: true,
+                        render: function (h, params) {
+                            var html = "";
+                            if(params.row.startTime){
+                                html += dateFormat("yyyy-MM-dd hh:mm:ss",new Date(params.row.startTime));
+                            }
+                            return h('div', [
+                                h('div', html)
+                            ]);
+                        }
+                    },
+                    {
+                        title: '最近一次运行时间',
+                        key: 'preFireTime',
+                        width: 152,
+                        sortable: true,
+                        render: function (h, params) {
+                            var html = "";
+                            if(params.row.preFireTime){
+                                html += dateFormat("yyyy-MM-dd hh:mm:ss",new Date(params.row.preFireTime));
+                            }
+                            return h('div', [
+                                h('div', html)
+                            ]);
+                        }
+                    },
+                    {
+                        title: '操作',
+                        key: 'action',
+                        width: 290,
+                        align: 'center',
+                        render: function (h, params) {
+                            return h('div', [
+                                h('Button', {
+                                    props: {
+                                        type: 'info',
+                                        size: 'small'
+                                    },
+                                    style: {
+                                        marginRight: '5px'
+                                    },
+                                    on: {
+                                        click: function () {
+                                            if(params.row.jobName && params.row.jobGroup) {
+                                                vue.trigger(params.row.jobName, params.row.jobGroup);
+                                            }else{
+                                                vue.$Message.error('该任务不存在，无法运行！');
+                                            }
+                                        }
+                                    }
+                                }, '运行一次'),
+                                h('Button', {
+                                    props: {
+                                        type: 'warning',
+                                        size: 'small'
+                                    },
+                                    style: {
+                                        marginRight: '5px'
+                                    },
+                                    on: {
+                                        click: function () {
+                                            if(params.row.jobName && params.row.jobGroup) {
+                                                vue.pause(params.row.jobName, params.row.jobGroup);
+                                            }else{
+                                                vue.$Message.error('该任务不存在，无法停止！');
+                                            }
+                                        }
+                                    }
+                                }, '停止'),
+                                h('Button', {
+                                    props: {
+                                        type: 'success',
+                                        size: 'small'
+                                    },
+                                    style: {
+                                        marginRight: '5px'
+                                    },
+                                    on: {
+                                        click: function () {
+                                            if(params.row.jobName && params.row.jobGroup) {
+                                                vue.resume(params.row.jobName, params.row.jobGroup);
+                                            }else{
+                                                vue.$Message.error('该任务不存在，无法恢复！');
+                                            }
+                                        }
+                                    }
+                                }, '恢复'),
+                                h('Button', {
+                                    props: {
+                                        type: 'primary',
+                                        size: 'small'
+                                    },
+                                    style: {
+                                        marginRight: '5px'
+                                    },
+                                    on: {
+                                        click: function () {
+                                            vue.formItemU = {
+                                                jobName: params.row.jobName,
+                                                jobGroup: params.row.jobGroup,
+                                                jobDesc: params.row.jobDesc,
+                                                cronExpression: params.row.cronExpression,
+                                            }
+                                            vue.updateModel = true;
+                                        }
+                                    }
+                                }, '修改'),
+                                h('Button', {
+                                    props: {
+                                        type: 'error',
+                                        size: 'small'
+                                    },
+                                    style: {
+                                        marginRight: '5px'
+                                    },
+                                    on: {
+                                        click: function () {
+                                            if(params.row.jobName && params.row.jobGroup) {
+                                                vue.del(params.row.jobName, params.row.jobGroup);
+                                            }else{
+                                                vue.$Message.error('该任务不存在，无法删除！');
+                                            }
+                                        }
+                                    }
+                                }, '删除')
+                            ]);
+                        }
+                    }
+
+                ],
+                data: [],
+                loading: false,
+                pageParam: {
+                    pageIndex: 1,
+                    pageSize: 10,
+                    totalRecord: 0
+                },
+                searchParam: {
+                    keyWord: ""
+                }
+            }
+        },
+        created: function () {
+            this.getData();
+        },
+        methods: {
+            addJob: function () {
+                var vm = this;
+                vm.editModel = true;
+            },
+            ok: function () {
+                this.submit('formValidate');
+            },
+            updateJob: function () {
+                var vm = this;
+                vm.updateModel = true;
+            },
+            okU: function () {
+                this.update('formValidateU');
+            },
+            submit: function(name){
+                var vm = this;
+                this.$refs[name].validate(function (valid) {
+                    if (valid) {
+                        var request = vm.formItem;
+                        $.ajax({
+                            url: "/springboot_quartz/job/add",
+                            data: JSON.stringify(request),
+                            type: "POST",
+                            dataType: "json",
+                            contentType: "application/json; charset=utf-8",
+                            success: function(data) {
+                                if(data != null && data != undefined && data.rspCode != "1"){
+                                    vm.$Notice.success({
+                                        title: '通知',
+                                        desc: '任务添加成功！',
+                                        duration: 1.5
+                                    });
+                                }else{
+                                    vm.$Notice.error({
+                                        title: '通知',
+                                        desc: '任务添加失败！',
+                                        duration: 1.5
+                                    });
+                                }
+                            },complete: function () {
+                                vm.formItem = {};
+                                vm.formItem.jobName = "com.example.quartz.job.";
+                                vm.formItem.jobGroup = "group_a";
+                                vm.search();
+                            }
+                        });
+                    }else{
+                        vm.$Notice.error({
+                            title: '通知',
+                            desc: '请填写正确的任务信息！',
+                            duration: 1.5
+                        });
+                    }
+                });
+            },
+            del: function(jobName, jobGroup){
+                var vm = this;
+                var request = {
+                    jobName: jobName,
+                    jobGroup: jobGroup
+                }
+                $.ajax({
+                    url: "/springboot_quartz/job/del",
+                    data: JSON.stringify(request),
+                    type: "POST",
+                    dataType: "json",
+                    contentType: "application/json; charset=utf-8",
+                    success: function(data) {
+                        if(data != null && data != undefined && data.rspCode != "1"){
+                            vm.$Notice.success({
+                                title: '通知',
+                                desc: '任务删除成功！',
+                                duration: 1.5
+                            });
+                        }else{
+                            vm.$Notice.error({
+                                title: '通知',
+                                desc: '任务删除失败！',
+                                duration: 1.5
+                            });
+                        }
+                    },complete: function () {
+                        setTimeout(function () {
+                            vm.search();
+                        }, 1000)
+                    }
+                });
+            },
+            pause: function(jobName, jobGroup){
+                var vm = this;
+                var request = {
+                    jobName: jobName,
+                    jobGroup: jobGroup
+                }
+                $.ajax({
+                    url: "/springboot_quartz/job/pause",
+                    data: JSON.stringify(request),
+                    type: "POST",
+                    dataType: "json",
+                    contentType: "application/json; charset=utf-8",
+                    success: function(data) {
+                        if(data != null && data != undefined && data.rspCode != "1"){
+                            vm.$Notice.success({
+                                title: '通知',
+                                desc: '任务停止成功！',
+                                duration: 1.5
+                            });
+                        }else{
+                            vm.$Notice.error({
+                                title: '通知',
+                                desc: '任务停止失败！',
+                                duration: 1.5
+                            });
+                        }
+                    },complete: function () {
+                        setTimeout(function () {
+                            vm.search();
+                        }, 1000)
+                    }
+                });
+            },
+            resume: function(jobName, jobGroup){
+                var vm = this;
+                var request = {
+                    jobName: jobName,
+                    jobGroup: jobGroup
+                }
+                $.ajax({
+                    url: "/springboot_quartz/job/resume",
+                    data: JSON.stringify(request),
+                    type: "POST",
+                    dataType: "json",
+                    contentType: "application/json; charset=utf-8",
+                    success: function(data) {
+                        if(data != null && data != undefined && data.rspCode != "1"){
+                            vm.$Notice.success({
+                                title: '通知',
+                                desc: '任务恢复成功！',
+                                duration: 1.5
+                            });
+                        }else{
+                            vm.$Notice.error({
+                                title: '通知',
+                                desc: '任务恢复失败！',
+                                duration: 1.5
+                            });
+                        }
+                    },complete: function () {
+                        setTimeout(function () {
+                            vm.search();
+                        }, 1000)
+                    }
+                });
+            },
+            trigger: function(jobName, jobGroup){
+                var vm = this;
+                var request = {
+                    jobName: jobName,
+                    jobGroup: jobGroup
+                }
+                $.ajax({
+                    url: "/springboot_quartz/job/trigger",
+                    data: JSON.stringify(request),
+                    type: "POST",
+                    dataType: "json",
+                    contentType: "application/json; charset=utf-8",
+                    success: function(data) {
+                        if(data != null && data != undefined && data.rspCode != "1"){
+                            vm.$Notice.success({
+                                title: '通知',
+                                desc: '任务执行成功！',
+                                duration: 1.5
+                            });
+                        }else{
+                            vm.$Notice.error({
+                                title: '通知',
+                                desc: '任务执行失败！',
+                                duration: 1.5
+                            });
+                        }
+                    },complete: function () {
+                        setTimeout(function () {
+                            vm.search();
+                        }, 1000)
+                    }
+                });
+            },
+            update: function(name){
+                var vm = this;
+                this.$refs[name].validate(function (valid) {
+                    if (valid) {
+                        var request = vm.formItemU;
+                        $.ajax({
+                            url: "/springboot_quartz/job/update",
+                            data: JSON.stringify(request),
+                            type: "POST",
+                            dataType: "json",
+                            contentType: "application/json; charset=utf-8",
+                            success: function(data) {
+                                if(data != null && data != undefined && data.rspCode != "1"){
+                                    vm.$Notice.success({
+                                        title: '通知',
+                                        desc: '任务修改成功！',
+                                        duration: 1.5
+                                    });
+                                }else{
+                                    vm.$Notice.error({
+                                        title: '通知',
+                                        desc: '任务修改失败！',
+                                        duration: 1.5
+                                    });
+                                }
+                            },complete: function () {
+                                setTimeout(function () {
+                                    vm.search();
+                                }, 1000)
+                            }
+                        });
+                    }else{
+                        vm.$Notice.error({
+                            title: '通知',
+                            desc: '请填写正确的任务信息！',
+                            duration: 1.5
+                        });
+                    }
+                });
+            },
+            getData: function () {
+                var vm = this;
+                vm.loading = true;
+                var request = {
+                    pageIndex: vm.pageParam.pageIndex,
+                    pageSize: vm.pageParam.pageSize,
+                    keyWord: vm.searchParam.keyWord
+                }
+                $.ajax({
+                    url: "/springboot_quartz/job/query",
+                    data: JSON.stringify(request),
+                    type: "POST",
+                    dataType: "json",
+                    contentType: "application/json; charset=utf-8",
+                    success: function (data) {
+                        if (data != null && data != undefined && data.rspCode != "1") {
+                            vm.data = data.data.jobInfos.list;
+                            vm.pageParam.totalRecord = data.data.number;
+                        }
+                    }, complete: function () {
+                        vm.loading = false;
+                    }
+                });
+            },
+            search: function () {
+                this.pageParam.pageIndex = 1;
+                this.pageParam.pageSize = 10;
+                this.getData();
+            },
+            pageIndexChange: function (index) {
+                this.pageParam.pageIndex = index;
+                this.getData();
+            },
+            pageSizeChange: function (size) {
+                this.pageParam.pageIndex = 1;
+                this.pageParam.pageSize = size;
+                this.getData();
+            },
+
+        }
+    });
+
+    function dateFormat(fmt, date) {
+        var o = {
+            "M+": date.getMonth() + 1,     //月份
+            "d+": date.getDate(),     //日
+            "h+": date.getHours(),     //小时
+            "m+": date.getMinutes(),     //分
+            "s+": date.getSeconds(),     //秒
+            "q+": Math.floor((date.getMonth() + 3) / 3), //季度
+            "S": date.getMilliseconds()    //毫秒
+        };
+        if (/(y+)/.test(fmt))
+            fmt = fmt.replace(RegExp.$1, (date.getFullYear() + "").substr(4 - RegExp.$1.length));
+        for (var k in o)
+            if (new RegExp("(" + k + ")").test(fmt))
+                fmt = fmt.replace(RegExp.$1, (RegExp.$1.length == 1) ? (o[k]) : (("00" + o[k]).substr(("" + o[k]).length)));
+        return fmt;
+    };
+
+    function getstatus(code) {
+        var html = "";
+        switch (code) {
+            case "WAITING":
+                html += "等待";
+                break;
+            case "PAUSED":
+                html += "暂停";
+                break;
+            case "ACQUIRED":
+                html += "运行中";
+                break;
+            case "BLOCKED":
+                html += "阻塞";
+                break;
+            case "ERROR":
+                html += "错误";
+                break;
+            default:
+                html += "--";
+                break;
+        }
+        return html;
+    }
+</script>
+</body>
+</html>
