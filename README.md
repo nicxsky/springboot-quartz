@@ -1,4 +1,5 @@
-# springboot-quartz
+# springboot-quartz   
+Springboot集成Quartz
 
 Please modify application.properties&quartz.properties before bring up application  
 If you want create a new job, please refer JobDemo
